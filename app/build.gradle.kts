@@ -51,7 +51,7 @@ dependencies {
     implementation(libs.firebase.firestore)
     implementation("com.google.firebase:firebase-firestore:26.0.2")
     // implementation(libs.androidx.material3) // para la contraseña
-  //  implementation(libs.androidx.compose.foundation) //text ofuscation
+     //  implementation(libs.androidx.compose.foundation) //text ofuscation
     ksp("androidx.room:room-compiler:2.8.3")
     implementation("androidx.room:room-ktx:2.8.3")
     implementation("androidx.navigation:navigation-compose:2.9.5") // Navegacion
