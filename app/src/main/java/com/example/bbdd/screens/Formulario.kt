@@ -1,5 +1,6 @@
 package com.example.bbdd.screens
 
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -45,6 +46,9 @@ import com.example.bbdd.localdb.Estructura
 import com.example.bbdd.localdb.UsuarioDao
 import com.example.bbdd.localdb.UsuariosData
 import com.example.bbdd.navigation.AppScreens
+import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.auth
 import com.google.firebase.firestore.FirebaseFirestore
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -57,7 +61,8 @@ fun Formulario(navController: NavController) {
     var incorporacion by remember { mutableStateOf("") }
     var contrasena = rememberTextFieldState("")
     var passVisible by remember { mutableStateOf(false) }
-    val emailPattern = Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}") // Patrón a seguir en el email
+    val emailPattern =
+        Regex("[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}") // Patrón a seguir en el email
     // Se obtiene el contexto actual, necesario para construir la base de datos Room y mostrar mensajes Toasts.
     val context = LocalContext.current
     // Se crea una instancia de la base de datos local, indicando el contexto, la clase base de datos y el nombre del archivo,
@@ -74,6 +79,8 @@ fun Formulario(navController: NavController) {
     // Crea una instancia de acceso a la base de datos Firestore. Devuelve una instancia del cliente de Firestore asociada con la
     // aplicación. Al guardarla en dbfire, se puede utilizar para realizar operaciones como acceder a colecciones, documentos, insertar o
     // consultar datos.
+    lateinit var auth: FirebaseAuth
+    auth = Firebase.auth
 
 
 // BARRA SUPERIOR
@@ -150,32 +157,40 @@ fun Formulario(navController: NavController) {
                     when {
                         nombre.isBlank() -> {
                             Toast.makeText(
-                                context, "El nombre no puede estar vacío", Toast.LENGTH_SHORT
+                                context,
+                                "El nombre no puede estar vacío",
+                                Toast.LENGTH_SHORT
                             ).show()
                         }
 
                         apellidos.isBlank() -> {
                             Toast.makeText(
-                                context, "Los apellidos no pueden estar vacíos", Toast.LENGTH_SHORT
+                                context,
+                                "Los apellidos no pueden estar vacíos",
+                                Toast.LENGTH_SHORT
                             ).show()
                         }
 
                         email.isBlank() -> {
                             Toast.makeText(
-                                context, "El email no puede estar vacío", Toast.LENGTH_SHORT
+                                context,
+                                "El email no puede estar vacío",
+                                Toast.LENGTH_SHORT
                             ).show()
                         }
 
                         !email.matches(emailPattern) -> {
                             Toast.makeText(
-                                context, "El email no tiene un formato válido", Toast.LENGTH_SHORT
+                                context,
+                                "El email no tiene un formato válido",
+                                Toast.LENGTH_SHORT
                             ).show()
                         }
 
-                        contrasena.text.length < 8 -> {
+                        contrasena.text.length <= 3 -> {
                             Toast.makeText(
                                 context,
-                                "La contraseña debe tener al menos 8 caracteres",
+                                "La contraseña debe tener al menos 3 caracteres",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
@@ -197,41 +212,60 @@ fun Formulario(navController: NavController) {
                         }
 
                         else -> {
-                            // Almacena los datos en la base de datos Room
-                            val usr = UsuariosData(
-                                nombreUsuario = nombre,
-                                apellidosUsuario = apellidos,
-                                incorporacionUsuario = incorporacion,
-                                email = email
-                            )
-                            usuarioD.nuevoUsuario(usr)
-
-                            // Firebase: Se crea un mapa de Strings con los pares clave-valor. Cada par representa un campo y el valor que toma para ese usuario.
-                            val data = mapOf(
-                                "nombre" to nombre,
-                                "apellidos" to apellidos,
-                                "email" to email,
-                                "password" to contrasena.text
-                            )
-                            // Se accede a la colección "usuarios" y se selecciona un documento identificado por el email, que será el documento donde se van a guardar
-                            // los datos y que será el identificador (email). Si no existe un documento con ese mismo nombre (email), se crea uno nuevo dentro de usuarios y si
-                            // ya existe, se sobrescribe la información.
-                            dbfire.collection("usuarios").document(email)
-                                .set(data) // Guarda el mapa de datos (los campos y valores) en el documento usuario. Para eliminar .delete().
-                                .addOnSuccessListener { // Gestiona el resultado de la operación realizada utilizando el addOnSuccessListener para cuando se ha
-                                    // realizado correctamente o addOnFailureListener si por el contrario ha ocurrido algún error
-                                    println("Datos guardados correctamente")
-                                }.addOnFailureListener { e ->
-                                    println("Error al guardar datos: ${e.message}")
+                            // Crear usuario con email y contraseña para firebase, en base a lo introducido al registrarse
+                            auth.createUserWithEmailAndPassword(email, contrasena.text.toString())
+                                .addOnCompleteListener { task ->
+                                    if (task.isSuccessful) {
+                                        val uid =
+                                            auth.currentUser?.uid ?: return@addOnCompleteListener
+                                        // Guardar bd local
+                                        val usr = UsuariosData(
+                                            nombreUsuario = nombre,
+                                            apellidosUsuario = apellidos,
+                                            incorporacionUsuario = incorporacion,
+                                            email = email
+                                        )
+                                        usuarioD.nuevoUsuario(usr)
+                                        // Guardar en la nube Firestore
+                                        val data = mapOf(
+                                            "nombre" to nombre,
+                                            "apellidos" to apellidos,
+                                            "email" to email,
+                                            "incorporacion" to incorporacion
+                                        )
+                                        dbfire.collection("usuarios").document(uid).set(data)
+                                            .addOnSuccessListener {
+                                                Toast.makeText(
+                                                    context,
+                                                    "Usuario registrado correctamente",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                                navController.navigate(route = AppScreens.Resultados.route)
+                                            }
+                                            .addOnFailureListener { e ->
+                                                Toast.makeText(
+                                                    context,
+                                                    "Error de Firestore: ${e.message}",
+                                                    Toast.LENGTH_SHORT
+                                                ).show()
+                                            }
+                                    } else {
+                                        // Log específico para debug
+                                        Log.e(
+                                            "Registro",
+                                            "Firebase error: ${task.exception?.message}"
+                                        )
+                                        Toast.makeText(
+                                            context,
+                                            "Error Firebase: ${task.exception?.message}",
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                    }
                                 }
-
-                            Toast.makeText(
-                                context, "Usuario registrado correctamente", Toast.LENGTH_SHORT
-                            ).show()
-                            navController.navigate(route = AppScreens.Resultados.route)
                         }
                     }
-                }) {
+                }
+            ) {
                 Text(text = "Agregar usuario")
             }
             Button(
@@ -240,6 +274,13 @@ fun Formulario(navController: NavController) {
                     navController.navigate(route = AppScreens.Resultados.route)
                 }) {
                 Text(text = "Ir a resultados")
+            }
+            Button(
+                onClick = {
+                    Toast.makeText(context, "Iniciar sesión", Toast.LENGTH_SHORT).show()
+                    navController.navigate(route = AppScreens.Inicio.route)
+                }) {
+                Text(text = "Iniciar sesión")
             }
         }
     }

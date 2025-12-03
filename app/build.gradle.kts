@@ -45,7 +45,8 @@ android {
 }
 
 dependencies {
-
+    implementation(platform("com.google.firebase:firebase-bom:34.6.0"))
+    implementation("com.google.firebase:firebase-auth")
     //ROOM
     api("androidx.room:room-runtime:2.8.3")
     implementation(libs.firebase.firestore)
@@ -57,7 +58,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.5") // Navegacion
 
     //---------------------------------
-    implementation("androidx.compose.material:material-icons-extended:1.5.0-alpha08") // Para los iconos
+    implementation("androidx.compose.material:material-icons-extended:1.5.0-alpha08") // Para los iconosb
     implementation("androidx.compose.material3:material3:1.5.0-alpha08") // Para tener el material3 lo más actualizado de jetpack compose
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
