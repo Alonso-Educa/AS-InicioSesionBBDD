@@ -45,7 +45,8 @@ android {
 }
 
 dependencies {
-
+    implementation(platform("com.google.firebase:firebase-bom:34.6.0"))
+    implementation("com.google.firebase:firebase-auth")
     //ROOM
     api("androidx.room:room-runtime:2.8.3")
     implementation(libs.firebase.firestore)

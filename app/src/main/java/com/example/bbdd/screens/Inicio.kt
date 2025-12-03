@@ -1,5 +1,7 @@
 package com.example.bbdd.screens
 
+import android.content.ContentValues.TAG
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -47,6 +49,9 @@ import com.example.bbdd.localdb.SesionData
 import com.example.bbdd.localdb.UsuariosData
 import com.example.bbdd.navigation.AppScreens
 import com.google.firebase.Firebase
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
+import com.google.firebase.auth.auth
 import com.google.firebase.firestore.firestore
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -75,6 +80,9 @@ fun Inicio(navController: NavController) {
     // Obtención del DAO, es decir, la interfaz para realizar operaciones CRUD sobre la tabla de la base de
     // datos local.
     var usuarioid: UsuariosData?
+    lateinit var auth: FirebaseAuth
+    auth = Firebase.auth
+
 
     Scaffold(
         topBar = {
@@ -138,80 +146,41 @@ fun Inicio(navController: NavController) {
             )
             Spacer(Modifier.size(15.dp))
 
-            Button(onClick = {
-                if (contrasena.text.isBlank() || email.isBlank()) { // Comprueba si hay campos con algún campo en blanco (vacío) y si lo hay mostrará un mensaje Toast.
-                    Toast.makeText(context, "No puede haber campos en blanco", Toast.LENGTH_SHORT)
-                        .show()
-                } else { // Si los campos está completos, iniciamos sesión.
-                    dbFirebase.collection("usuarios").document(email).get()
-                        .addOnSuccessListener { usuario -> // Se realiza una consulta en la base de datos en la nube (Firestore)
-                            // para poder recuperar el documento cuyo email coincide con el tecleado.
-                            val usr =
-                                usuario.data // Se crea un mapa mutable con los datos del usuario si el documento existe o nulo si no lo recupera.
-                            if (usr != null) { // Si existe un usuario en la bd de la nube, extraemos el email y la contraseña del usuario extraído a través de la nube.
-                                val emailUsr = usr["email"] as? String
-                                val pwd = usr["password"] as? String
-                                if (emailUsr != null && pwd != null) { // Validamos que hemos recuperado un usuario con datos no nulos.
-                                    // Obtener usuarioid sólo si hay un email registrado y se recuperan los datos previamente.
-                                    usuarioid = dbl.usuarioDao()
-                                        .getUnUser(emailUsr) // Recuperamos la información del usuario en la base de datos local a través del email.
-                                    if (pwd == contrasena.text && usuarioid != null) { // Si además coincide la contraseña almacenada con la introducida, generamos la estructura.
-                                        val formatFecha = SimpleDateFormat(
-                                            "dd-MM-yyyy",
-                                            Locale.getDefault()
-                                        ) // Creamos el formato de la fecha, utilizando patrones.
-                                        val fecha = formatFecha.format(Date())
-                                        val sesionData =
-                                            SesionData( // Creamos el objeto de sesión para insertar en la bd.
-                                                idUsuario = usuarioid!!.idUsuario,
-                                                fechaInicio = fecha
-                                            )
-                                        dbl.sesionDao()
-                                            .nuevaSesion(sesionData) // Insertamos la sesión utilizando el procedimineto DAO nuevaSesion().
-                                        navController.navigate(route = AppScreens.Formulario.route) // Se redirige y navega a la ventana principal del formulario.
-                                        Toast.makeText(
-                                            context,
-                                            "Usuario inició sesión",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    } else {
-                                        Toast.makeText(
-                                            context,
-                                            "Credenciales inválidas",
-                                            Toast.LENGTH_SHORT
-                                        ).show()
-                                    }
+            Button(
+                onClick = {
+                    if(contrasena.text.isBlank() || email.isBlank()) { // Comprueba si hay campos con algún campo en blanco (vacío).
+                        Toast.makeText(context,"No puede haber campos en blanco",Toast.LENGTH_SHORT).show()
+                    }else { // Si los campos está completos, iniciamos sesión.
+                        auth.signInWithEmailAndPassword(email, contrasena.text.toString())
+                            .addOnCompleteListener { task ->
+                                if (task.isSuccessful) {
+                                    Log.d(TAG, "Login OK: ${auth.currentUser?.email}")
+                                    navController.navigate(route = AppScreens.Formulario.route) // Se redirige a la ventana principal del formulario.
+                                    Toast.makeText(context,"Usuario inició sesión",Toast.LENGTH_SHORT).show()
                                 } else {
-                                    Toast.makeText(
-                                        context,
-                                        "Datos del usuario incompletos",
-                                        Toast.LENGTH_SHORT
-                                    ).show()
+                                    val ex = task.exception
+                                    when (ex) {
+                                        is FirebaseAuthInvalidCredentialsException -> {
+                                            Log.e(TAG, "Credenciales inválidas para: $email")
+                                            Toast.makeText(context, "Email o contraseña incorrectos", Toast.LENGTH_LONG).show()
+                                        }
+                                        else -> {
+                                            Log.e(TAG, "Error inesperado", ex)
+                                            Toast.makeText(context, "${ex?.message}", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
                                 }
-                            } else {
-                                Toast.makeText(context, "Usuario no existe", Toast.LENGTH_SHORT)
-                                    .show()
                             }
-                        }.addOnFailureListener {
-                        Toast.makeText(context, "Error en la consulta", Toast.LENGTH_SHORT).show()
-                    }
+                    }}) {
+                    Text(text = "Iniciar sesion")
                 }
-            }) {
-                Text(text = "Iniciar sesion")
-            }
+
             Button(
                 onClick = {
                     Toast.makeText(context, "Crear usuario", Toast.LENGTH_SHORT).show()
                     navController.navigate(route = AppScreens.Formulario.route)
                 }) {
                 Text(text = "Crear usuario")
-            }
-            Button(
-                onClick = {
-                    Toast.makeText(context, "Ir a resultados", Toast.LENGTH_SHORT).show()
-                    navController.navigate(route = AppScreens.Resultados.route)
-                }) {
-                Text(text = "Ir a resultados")
             }
         }
     }
